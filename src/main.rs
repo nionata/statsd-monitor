@@ -1,3 +1,9 @@
+mod tui;
+use tui::Tui;
+
 fn main() {
-    println!("Hello, world!");
+    Tui::new()
+        .expect("Failed to init terminal")
+        .run()
+        .expect("Failed to run terminal");
 }
