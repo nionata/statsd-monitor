@@ -1,11 +1,16 @@
+mod parser;
+mod server;
 mod tui;
+
+use server::StatsdServer;
 use tui::Tui;
 
-mod server;
-
 fn main() {
-    Tui::new()
-        .expect("Failed to init terminal")
+    // TODO: make addr a cli arg
+    let statsd_server =
+        StatsdServer::new("0.0.0.0:8125", 2048).expect("Failed to initialize statd server");
+
+    Tui::new(statsd_server)
         .run()
         .expect("Failed to run terminal");
 }

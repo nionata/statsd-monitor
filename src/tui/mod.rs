@@ -17,23 +17,26 @@ use std::{
 use crate::server::StatsdServer;
 
 pub struct Tui {
+    // TODO: make this a trait so we can mock it out
+    server: StatsdServer,
     exited: bool,
 }
 
 impl Tui {
-    pub fn new() -> io::Result<Self> {
-        Ok(Self { exited: false })
+    pub fn new(server: StatsdServer) -> Self {
+        Self {
+            server,
+            exited: false,
+        }
     }
 
     pub fn run(&mut self) -> io::Result<()> {
-        let mut server = StatsdServer::new()?;
-
         let mut terminal = Self::init()?;
 
         while !self.exited {
             thread::sleep(Duration::from_millis(10));
 
-            let _val = server.try_get();
+            let _val = self.server.try_get();
 
             terminal.draw(|frame| self.draw_frame(frame))?;
 
@@ -54,7 +57,8 @@ impl Tui {
         let block = Block::bordered().title("Statsd Monitor");
         frame.render_widget(
             BarChart::default()
-                .data(&[("metric", 10)])
+                .data(&[("Metric", 10)])
+                .bar_width(10)
                 .max(100)
                 .block(block),
             frame.size(),
