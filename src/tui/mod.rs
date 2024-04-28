@@ -14,6 +14,8 @@ use std::{
     time::Duration,
 };
 
+use crate::server::StatsdServer;
+
 pub struct Tui {
     exited: bool,
 }
@@ -24,10 +26,14 @@ impl Tui {
     }
 
     pub fn run(&mut self) -> io::Result<()> {
+        let mut server = StatsdServer::new()?;
+
         let mut terminal = Self::init()?;
 
         while !self.exited {
             thread::sleep(Duration::from_millis(10));
+
+            let _val = server.try_get();
 
             terminal.draw(|frame| self.draw_frame(frame))?;
 
