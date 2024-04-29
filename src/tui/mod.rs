@@ -1,37 +1,47 @@
+use crate::provider::MeasurementsProvider;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+    event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use ratatui::{
     prelude::{CrosstermBackend, Terminal},
-    widgets::{BarChart, Block},
+    widgets::{Bar, BarChart, BarGroup, Block},
     Frame,
 };
 use std::{
+    collections::HashMap,
     io::{self, Stdout},
     thread,
     time::Duration,
 };
 
 pub struct Tui {
+    measurements: HashMap<String, f64>,
     exited: bool,
 }
 
 impl Tui {
-    pub fn new() -> io::Result<Self> {
-        Ok(Self { exited: false })
+    pub fn new() -> Self {
+        Self {
+            measurements: HashMap::new(),
+            exited: false,
+        }
     }
 
-    pub fn run(&mut self) -> io::Result<()> {
+    pub fn run(&mut self, provider: &mut impl MeasurementsProvider) -> io::Result<()> {
         let mut terminal = Self::init()?;
 
         while !self.exited {
             thread::sleep(Duration::from_millis(10));
 
+            provider.update_measurements(&mut self.measurements);
+
             terminal.draw(|frame| self.draw_frame(frame))?;
 
-            self.handle_events()?;
+            if Self::is_event_available()? {
+                self.handle_events()?;
+            }
         }
 
         Ok(())
@@ -46,13 +56,45 @@ impl Tui {
 
     fn draw_frame(&mut self, frame: &mut Frame) {
         let block = Block::bordered().title("Statsd Monitor");
+
+        // TODO encapsulate this better...
+
+        let mut bars = Vec::new();
+
+        let mut max_val = 1.0;
+        let mut max_width = 1;
+
+        for (k, v) in self.measurements.iter() {
+            bars.push(
+                Bar::default()
+                    .value(*v as u64)
+                    .text_value(v.to_string())
+                    .label(k.clone().into()),
+            );
+
+            if k.len() > max_width {
+                max_width = k.len();
+            }
+
+            if *v > max_val {
+                max_val = *v;
+            }
+        }
+
+        let data = BarGroup::default().bars(&bars);
+
         frame.render_widget(
             BarChart::default()
-                .data(&[("metric", 10)])
-                .max(100)
+                .data(data)
+                .bar_width(max_width.try_into().unwrap())
+                .max(max_val as u64)
                 .block(block),
             frame.size(),
         )
+    }
+
+    fn is_event_available() -> io::Result<bool> {
+        poll(Duration::from_millis(10))
     }
 
     fn handle_events(&mut self) -> io::Result<()> {

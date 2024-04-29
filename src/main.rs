@@ -1,7 +1,9 @@
 mod parser;
+mod provider;
 mod server;
 mod tui;
 
+use provider::StatsdMeasurementsProvider;
 use server::UdpServer;
 use tui::Tui;
 
@@ -10,5 +12,9 @@ fn main() {
     let udp_server =
         UdpServer::new("0.0.0.0:8125", 2048).expect("Failed to initialize statd server");
 
-    Tui::new().run().expect("Failed to run terminal");
+    let mut provider = StatsdMeasurementsProvider::new(udp_server);
+
+    Tui::new()
+        .run(&mut provider)
+        .expect("Failed to run terminal");
 }
