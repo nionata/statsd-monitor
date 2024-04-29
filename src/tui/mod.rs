@@ -14,18 +14,17 @@ use std::{
     time::Duration,
 };
 
-use crate::server::StatsdServer;
-
 pub struct Tui {
     // TODO: make this a trait so we can mock it out
-    server: StatsdServer,
+    // server: StatsdServer,
     exited: bool,
 }
 
 impl Tui {
-    pub fn new(server: StatsdServer) -> Self {
+    // pub fn new(server: StatsdServer) -> Self {
+    pub fn new() -> Self {
         Self {
-            server,
+            // server,
             exited: false,
         }
     }
@@ -35,8 +34,6 @@ impl Tui {
 
         while !self.exited {
             thread::sleep(Duration::from_millis(10));
-
-            let _val = self.server.try_get();
 
             terminal.draw(|frame| self.draw_frame(frame))?;
 

@@ -1,16 +1,14 @@
 use std::io;
-use std::time::Duration;
-use std::{net::UdpSocket, str::from_utf8};
+use std::net::UdpSocket;
 
-pub struct StatsdServer {
+pub struct UdpServer {
     socket: UdpSocket,
     buf: Vec<u8>,
 }
 
-impl StatsdServer {
+impl UdpServer {
     pub fn new(addr: &str, buffer_size: u16) -> io::Result<Self> {
         let socket = UdpSocket::bind(addr)?;
-        socket.set_read_timeout(Some(Duration::from_secs(1)))?;
 
         Ok(Self {
             socket,
@@ -18,54 +16,50 @@ impl StatsdServer {
         })
     }
 
-    pub fn try_get(&mut self) -> Option<&str> {
+    /// Try and get the next udp packet.
+    ///
+    /// # Blocking
+    ///
+    /// This function will block until a packet is available or there is an error.
+    pub fn try_get(&mut self) -> io::Result<&[u8]> {
         match self.socket.recv_from(&mut self.buf) {
-            Ok((size, _)) => from_utf8(&self.buf[0..size]).ok(),
-            Err(e) => {
-                println!("{}", e);
-                None
-            }
+            Ok((size, _)) => Ok(&self.buf[0..size]),
+            Err(e) => Err(e),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
-
-    use metrics_exporter_statsd::StatsdBuilder;
-
     use super::*;
+    use std::thread;
 
     #[test]
     fn publish() {
-        const METRIC: &str = "metric.test";
         const PORT: u16 = 10000;
         const BUF_SIZE: u16 = 256;
+        const PACKET_SIZE_BYTES: usize = 10;
+        const PACKETS: u8 = 10;
+        const PACKET: [u8; PACKET_SIZE_BYTES] = [0; PACKET_SIZE_BYTES];
 
-        thread::spawn(|| {
-            let recorder = StatsdBuilder::from("0.0.0.0", PORT)
-                .with_buffer_size(BUF_SIZE.into())
-                .build(Some(""))
-                .expect("Failed to init statsd");
+        let addr = || format!("{}:{}", "0.0.0.0", PORT);
 
-            metrics::set_global_recorder(recorder).expect("Failed to init recorder");
-
-            let mut i = 0;
-            let tick_gauage = metrics::gauge!(METRIC);
-
-            loop {
-                thread::sleep(Duration::from_millis(1));
-
-                i += 1;
-
-                tick_gauage.set(i);
+        let server_handle = thread::spawn(move || {
+            let mut server = UdpServer::new(&addr(), BUF_SIZE).unwrap();
+            for _ in 0..PACKETS {
+                assert_eq!(server.try_get().unwrap(), PACKET);
             }
         });
 
-        let mut server = StatsdServer::new(&format!("0.0.0.0:{}", PORT), BUF_SIZE).unwrap();
-        loop {
-            println!("{:?}", server.try_get().unwrap());
-        }
+        let client_handle = thread::spawn(move || {
+            let client = UdpSocket::bind("0.0.0.0:0").unwrap();
+
+            for _ in 0..PACKETS {
+                assert_eq!(client.send_to(&PACKET, addr()).unwrap(), PACKET_SIZE_BYTES,);
+            }
+        });
+
+        server_handle.join().unwrap();
+        client_handle.join().unwrap();
     }
 }
