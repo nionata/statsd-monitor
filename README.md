@@ -6,8 +6,8 @@ Monitor the metrics being published with the statsd protocol.
 
 ### Setup
 
-1. Install nix https://github.com/DeterminateSystems/nix-installer
-2. Install direnv
+1. [Install nix](https://github.com/DeterminateSystems/nix-installer)
+2. [Install direnv](https://direnv.net/)
 
 ```bash
 $ nix profile install nixpkgs#direnv
